@@ -652,6 +652,7 @@
     var parsed = parseChat(rawChatText);
     state.participants = parsed.participants;
     state.days = parsed.days;
+    statsCache = null;
     if(state.participants.length === 0){
       alert("Couldn't detect any messages in this file. Please check it's a WhatsApp chat export (.txt).");
       return;
@@ -1006,7 +1007,9 @@
     return word === 'contact card' ? 'contact' : word;
   }
 
+  var statsCache = null;
   function computeStats(){
+    if(statsCache) return statsCache;
     var perSender = {};
     var totalMessages = 0;
     var wordCounts = {};
@@ -1065,7 +1068,7 @@
     var lastDt = lastDay ? parseDateStr(lastDay.items[lastDay.items.length-1].date) : null;
     var spanDays = (firstDt && lastDt) ? Math.round((lastDt - firstDt) / 86400000) + 1 : null;
 
-    return {
+    statsCache = {
       totalMessages: totalMessages,
       perSender: perSender,
       daysActive: state.days.length,
@@ -1080,6 +1083,7 @@
       deletedCount: deletedCount,
       callCount: callCount
     };
+    return statsCache;
   }
 
   function renderStats(){
@@ -1201,7 +1205,9 @@
     rawChatText = null;
     chatFileInput.value = '';
     mediaFileInput.value = '';
+    Object.keys(state.mediaMap).forEach(function(k){ URL.revokeObjectURL(state.mediaMap[k]); });
     state.mediaMap = {};
+    statsCache = null;
   });
 
   themeBtn.addEventListener('click', function(){
@@ -1220,10 +1226,20 @@
     }
   });
 
-  searchInput.addEventListener('input', function(){ runSearch(searchInput.value.trim()); });
+  var searchDebounceTimer = null;
+  searchInput.addEventListener('input', function(){
+    var q = searchInput.value.trim();
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(function(){ runSearch(q); }, 150);
+  });
   searchInput.addEventListener('keydown', function(e){
     if(e.key === 'Enter'){
       e.preventDefault();
+      if(searchDebounceTimer){
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = null;
+        runSearch(searchInput.value.trim());
+      }
       if(e.shiftKey) gotoPrevMatch(); else gotoNextMatch();
     } else if(e.key === 'Escape'){
       searchBtn.click();
